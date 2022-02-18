@@ -1,16 +1,16 @@
 {
-	"Name": "Takyon.RespawnRefresh",
-	"Description": "Refreshes ability and ordnance on respawn",
+	"Name": "Takyon.CockblockProtocol",
+	"Description": "Fuck you and your chatbots",
 	"LoadPriority": 2,
 	"RequiredOnClient": false,
 	"Version": "1.0.0",
 
 	"Scripts": [
 		{
-			"Path": "takyon_respawnrefresh.nut",
+			"Path": "takyon_cockblockprotocol.nut",
 			"RunOn": "SERVER && MP",
 			"ServerCallback": {
-				"After": "RespawnRefreshInit"
+				"After": "CockblockProtocolInit"
 			}
 		}
 	]
