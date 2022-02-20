@@ -10,7 +10,7 @@ struct PlayerData{
 
 array<PlayerData> playerData
 array<string> niceMessages = ["ns", "nice", "nice shot", "wow", "cool", "pog"] // if one of these has been in the last few messages it will allow a nice answer
-array<string> niceAnswers = ["ty", "thanks", "nice shot"] 
+array<string> niceAnswers = ["ty", "thanks", "nice shot", "nice"] // allowed nice answers -> what player can respond to stuff like ns
 array<string> lastMessages
 int lastMessageSaveAmount = 5
 
@@ -25,12 +25,19 @@ float weightInstant = 3.0
 float weightFullName = 2.0
 float weightLastVictim = 1.5
 
+/*
+ *  INIT 
+ */
 
 void function CockblockProtocolInit(){
     AddCallback_OnReceivedSayTextMessage(ChatCallback)
     AddCallback_OnPlayerKilled(PlayerKilledCallback)
-    //AddCallback_OnClientDisconnected(OnPlayerDisconnected) // remove playerdata maybe?
+    AddCallback_OnClientDisconnected(OnPlayerDisconnected)
 }
+
+/*
+ *  CALLBACKS 
+ */
 
 ClServer_MessageStruct function ChatCallback(ClServer_MessageStruct message) {
     float sussyMeter = 0
@@ -70,13 +77,14 @@ ClServer_MessageStruct function ChatCallback(ClServer_MessageStruct message) {
     }
 
     // debug
-    printl("\n\n\n\nMessage Detected from: " + message.player.GetPlayerName())
-    printl("Message: " + message.message)
-    printl("WAS MOViNG " + move)
-    printl("INSTANT " + instant)
-    printl("FULL NAME " + fullName)
-    printl("LAST VICTIM " + lastName)
-    printl("Sussiness: " + sussyMeter + "\n\n\n\n")
+    string debug =  "\n\n\nMessage Detected from: " + message.player.GetPlayerName() + "\n" +
+                    "Message: " + message.message + "\n" +
+                    "WAS MOViNG " + move + "\n" +
+                    "INSTANT " + instant + "\n" +
+                    "FULL NAME " + fullName + "\n" +
+                    "LAST VICTIM " + lastName + "\n" +
+                    "Sussiness: " + sussyMeter + "\n\n\n"
+    print(debug)
     
     
     // should block based of sussyness
@@ -90,6 +98,7 @@ ClServer_MessageStruct function ChatCallback(ClServer_MessageStruct message) {
             }
         }
 
+        // block the message
         message.shouldBlock = true
         SendHudMessage(message.player, "Automated Message Blocked", -1, 0.48, 255, 200, 200, 255, 0.15, 2, 1 )
         // Chat_PrivateMessage(message.player, message.player, "Automated message blocked", true) // 1.6
@@ -100,6 +109,53 @@ ClServer_MessageStruct function ChatCallback(ClServer_MessageStruct message) {
     UpdateLastMessages(message.message)
     return message
 }
+
+void function PlayerKilledCallback(entity victim, entity attacker, var damageInfo)
+{
+	float timeKilled = Time()
+    bool attackerFound = false
+    bool victimFound = false
+
+    foreach(PlayerData pd in playerData){
+        // for the attacker, add the lastKillTime and the victim
+        if(pd.player == attacker){
+            pd.lastKillTime = timeKilled
+            pd.lastVictim = victim.GetPlayerName()
+            attackerFound = true
+        }
+
+        // for the victim, add the lastDeathTime
+        if(pd.player == victim){
+            pd.lastDeathTime = timeKilled
+            victimFound = true
+        }
+    }
+
+    // players not yet in database -> create them
+    if(!attackerFound){
+        PlayerData atk
+        atk.player = attacker
+        atk.lastKillTime = timeKilled
+        atk.lastVictim = victim.GetPlayerName()
+        playerData.append(atk)
+    }
+
+    if(!victimFound){
+        PlayerData vic
+        vic.player = victim
+        vic.lastDeathTime = timeKilled
+        playerData.append(vic)
+    }
+}
+
+void function OnPlayerDisconnected(entity player)
+{
+    RemovePlayerData(player)
+}
+
+/*
+ *  HELPER FUNCTIONS 
+ */
 
 // returns empty PlayerData if not found
 PlayerData function GetPlayerData(entity player){
@@ -115,6 +171,7 @@ PlayerData function GetPlayerData(entity player){
     return temp
 }
 
+// saves the last x messages
 void function UpdateLastMessages(string newMessage){
     if(lastMessages.len() >= lastMessageSaveAmount){
         lastMessages.remove(0)
@@ -123,6 +180,7 @@ void function UpdateLastMessages(string newMessage){
     print("last msg: " + lastMessages.len())
 }
 
+// increase number of blocked messages for player (will increase weightings for that player)
 void function AddBlockedMessage(entity player){
     foreach(PlayerData pd in playerData){
         if(pd.player == player){
@@ -131,6 +189,7 @@ void function AddBlockedMessage(entity player){
     }
 }
 
+// checks if the last x messages were nice (like nice shot) and only then allows a nice message to go thru (like thanks)
 bool function WereLastMessagesNice(){
     foreach(string lm in lastMessages){
         array<string> lmSplit = split(lm, " ") // split words to avoid bad matching
@@ -143,6 +202,7 @@ bool function WereLastMessagesNice(){
     return false
 }
 
+// checks if player was moving while sending message
 bool function WasMovingWhenSending(entity player){
     vector playerVelV = player.GetVelocity()
     float playerVel = sqrt(playerVelV.x * playerVelV.x + playerVelV.y * playerVelV.y)
@@ -162,6 +222,7 @@ bool function FullPlayernameInMessage(string msg){
     return false
 }
 
+// checks if the sent name was of the person last killed
 bool function IsSentNameLastVictim(entity player, string msg){
     string name = ""
     foreach(entity player in GetPlayerArray()){
@@ -177,6 +238,7 @@ bool function IsSentNameLastVictim(entity player, string msg){
     return false
 }
 
+// checks if the message was sent instantly after killing someone
 bool function WasInstantAfterKill(entity player){
     foreach(PlayerData pd in playerData){
         if(pd.player == player){
@@ -187,39 +249,12 @@ bool function WasInstantAfterKill(entity player){
     return false
 }
 
-void function PlayerKilledCallback(entity victim, entity attacker, var damageInfo)
-{
-	float timeKilled = Time()
-    
-    bool attackerFound = false
-    bool victimFound = false
-
-    foreach(PlayerData pd in playerData){
-        if(pd.player == attacker){
-            pd.lastKillTime = timeKilled
-            pd.lastVictim = victim.GetPlayerName()
-            attackerFound = true
+// removing playerdata on disconnect to save resources, reset blocked messages if everything gets blocked etc
+void function RemovePlayerData(entity player){
+    foreach(int i = 0; i < playerData.len(); i++){
+        if(playerData[i].player == player){
+            playerData.remove(i)
+            return
         }
-
-        if(pd.player == victim){
-            pd.lastDeathTime = timeKilled
-            victimFound = true
-        }
-    }
-
-    // players not yet in database
-    if(!attackerFound){
-        PlayerData atk
-        atk.player = attacker
-        atk.lastKillTime = timeKilled
-        atk.lastVictim = victim.GetPlayerName()
-        playerData.append(atk)
-    }
-
-    if(!victimFound){
-        PlayerData vic
-        vic.player = victim
-        vic.lastDeathTime = timeKilled
-        playerData.append(vic)
     }
 }
