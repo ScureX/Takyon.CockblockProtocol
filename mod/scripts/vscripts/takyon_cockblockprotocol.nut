@@ -251,7 +251,7 @@ bool function WasInstantAfterKill(entity player){
 
 // removing playerdata on disconnect to save resources, reset blocked messages if everything gets blocked etc
 void function RemovePlayerData(entity player){
-    foreach(int i = 0; i < playerData.len(); i++){
+    for(int i = 0; i < playerData.len(); i++){
         if(playerData[i].player == player){
             playerData.remove(i)
             return

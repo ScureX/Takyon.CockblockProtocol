@@ -3,7 +3,7 @@
 	"Description": "Fuck you and your chatbots",
 	"LoadPriority": 2,
 	"RequiredOnClient": false,
-	"Version": "1.0.0",
+	"Version": "1.0.1-alpha",
 
 	"Scripts": [
 		{
